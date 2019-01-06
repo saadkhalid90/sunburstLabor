@@ -3,7 +3,9 @@
       <title>Sunburst for Women Labor Force in Punjab</title>
       <script src='https://d3js.org/d3.v4.min.js'></script>
       <script src='https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js'></script>
-  <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+      <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.12/css/all.css" integrity="sha384-G0fIWCsCzJIMAVNQPfjH08cyYaUtMwjJwqiRKxxE/rx96Uroj1BtIQ6MLJuheaO9" crossorigin="anonymous">
+
       <!-- Want to run locally? Update src: 'https://d3js.org/d3.v4.min.js' -->
   </head>
 
@@ -26,6 +28,13 @@
       display: flex;
       align-items: center;
       justify-content: center;
+      border-radius: 5px;
+    }
+
+    .fa-angle-right {
+      color: white;
+      font-size: 18px;
+      margin-left: 4px;
     }
 
     #trailAndPercent {
@@ -451,7 +460,7 @@
       entering.style('background', function(d) { return scalColCateg(getParentCol(d)); });
 
       entering.html(function(d) {
-        return '<p style="color: white">' + d.data.name + '</p>'
+        return '<span style="color: white">' + d.data.name + ' </span><i class="fas fa-angle-right"></i>'
       });
         //  .attr("width", b.w)
         //  .attr("height", b.h)
