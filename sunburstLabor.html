@@ -53,7 +53,7 @@
 
     #explanation {
       position: absolute;
-      top: calc(50% - 40px);
+      top: calc(50% - 45px);
       left: calc(50% - 130px);
       text-align: center;
       color: #212121;
@@ -86,12 +86,17 @@
   <body>
     <div id="main">
       <div id="sequence"></div>
+      <div id="NodeTypeDiv">
+        <p id="NodeTypeText">
+
+        </p>
+      </div>
       <div id="chart">
         <div id="explanation" style="visibility: hidden; width: 260px">
           <span id="percentage"></span><br/>
           Denominator: Parent node<br/>
           <span id="percentGlobal"></span><br/>
-          Denominator: Punjab<br/>
+          Denominator: All <span id="UrbRurTitle"></span><br/><br/>
         </div>
       </div>
     </div>
@@ -100,6 +105,7 @@
   </body>
   <script>
     const scalColCateg = d3.scaleOrdinal()
+    let layerTypeScale
     d3.csv('laborHierarchy.csv', function(error, data){
       console.log(data);
 
@@ -120,6 +126,26 @@
 
       // list of variables that are part of the sequence
       let seqVars = ["area", "laborForce", "employment", "industry", "barrier", "empType", "homeBased", "informal"]
+      let layerTypes = ["Area", "Labor Force Participation", "Employment", "Industry", "Major barrier to work", "Employment Type", "Home based work", "Informal/ formal employment in non-agriculture sectors"];
+      let idx = 0;
+
+      let categs = [];
+      let categLayerType = [];
+      let setCategs;
+      let arrCategs;
+      seqVars.forEach(varble => {
+        setCategs = new Set(data.map(d => d[varble]));
+        arrCategs = Array.from(setCategs).filter(d => d!= "NA");
+
+        categLayerType = categLayerType.concat(Array(arrCategs.length).fill(layerTypes[idx]));
+        categs = categs.concat(arrCategs)
+        idx += 1;
+      })
+
+      layerTypeScale = d3.scaleOrdinal()
+                          .domain(categs)
+                          .range(categLayerType);
+
       // declaring labels and colors
       let labels = ["Urban", "Rural", "Not in labor force", "Labor force"];
       let colors = ['#29B6F6','#4DB6AC','#FF8F00','#8E24AA'];
@@ -145,7 +171,7 @@
 
 
     // Dimensions of sunburst.
-    var width = 900;
+    var width = 850;
     var height = width/5 * 4;
     var radius = Math.min(width, height) / 2;
 
@@ -172,6 +198,8 @@
         .attr("height", height)
         .append("svg:g")
         .attr("id", "container")
+        .attr('mask', 'url(#gradientMask)')
+        .style('mask', 'url(#gradientMask)')
         .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
     var partition = d3.partition()
@@ -200,6 +228,28 @@
       vis.append("svg:circle")
           .attr("r", radius)
           .style("opacity", 0);
+
+      let radGradData = [{"offset": "40%", "stop-opacity": 1, "stop-color": "white"}, {"offset": "100%", "stop-opacity": .75, "stop-color": "white"}];
+
+      d3.select('svg').append('defs')
+          .append('radialGradient')
+          .attr('id', 'radOpacGrad')
+          .selectAll('stop')
+          .data(radGradData)
+          .enter()
+          .append('stop')
+          .attr('offset', d => d.offset)
+          .attr('stop-opacity', d=> d[["stop-opacity"]])
+          .attr('stop-color', d=> d[["stop-color"]]);
+
+      d3.select('svg').select('defs')
+          .append('mask')
+          .attr('id', 'gradientMask')
+          .append('g')
+          .append('svg:circle')
+          .attr('r', radius)
+          //.style('fill', 'none')
+          .style('fill', 'url(#radOpacGrad)');
 
       // Turn the data into a d3 hierarchy and calculate the sums.
       var root = d3.hierarchy(json)
@@ -259,7 +309,12 @@
     // Fade all but the current sequence, and show it in the breadcrumb trail.
     function mouseover(d) {
 
+      var areaSize = getUrbRurWeight(d);
+      let area = getUrbRurWeight(d).area;
+      console.log(areaSize)
       var percentage = (100 * d.value / totalSize).toPrecision(3);
+      var percArea = (100 * d.value / areaSize.weight).toPrecision(3);
+
       var parSize = d3.sum(d.parent.children.map(d => d.value));
       var percRelPar = (100 * d.value / parSize).toPrecision(3);
 
@@ -278,10 +333,25 @@
           .text(percRelParString);
 
       d3.select("#percentGlobal")
-          .text(percentageString);
+          .text(`${percArea}%`);
+
+      d3.select("#UrbRurTitle")
+          .text(area);
 
       d3.select("#explanation")
           .style("visibility", "");
+
+      let hoveredName = d.data.name;
+
+      d3.select("#NodeTypeText")
+        .html(d => {
+          return `<br>Layer Type: <span id ="NodeTypeTextSpan">${layerTypeScale(hoveredName)}</span>`
+        })
+        .style("opacity", 1);
+
+      d3.select("#NodeTypeTextSpan").style('font-weight', 'bold');
+
+
 
       var sequenceArray = d.ancestors().reverse();
       sequenceArray.shift(); // remove root node from the array
@@ -320,6 +390,12 @@
 
       d3.select("#explanation")
           .style("visibility", "hidden");
+
+      d3.select("#NodeTypeText")
+          .style("opacity", 0);
+
+      d3.select("#endlabel")
+          .style("opacity", 0);
     }
 
     function initializeBreadcrumbTrail() {
@@ -388,7 +464,7 @@
           //.attr("dx", "0.35em")
           //.attr("text-anchor", "middle")
           .text(function(d) { return d.data.name; })
-          .call(wrap, b.w)
+          //.call(wrap, b.w)
 
       //entering.selectAll('text').call(wrap, b.w);
 
@@ -403,7 +479,8 @@
           .attr("y", b.h / 2)
           .attr("dy", "0.35em")
           .attr("text-anchor", "middle")
-          .text(percentageString);
+          .style('opacity', 1)
+          .text(percentageString + " (Punjab)");
 
       // Make the breadcrumb trail visible, if it's hidden.
       d3.select("#trail")
@@ -529,28 +606,22 @@
       }
     }
 
-    function wrap(text, width) {
-      text.each(function() {
-        var text = d3.select(this),
-            words = text.text().split(/\s+/).reverse(),
-            word,
-            line = [],
-            lineNumber = 0,
-            lineHeight = 1.1, // ems
-            y = text.attr("y"),
-            dy = parseFloat(text.attr("dy")),
-            tspan = text.text(null).append("tspan").attr("x", 0).attr("y", y).attr("dy", dy + "em");
-        while (word = words.pop()) {
-          line.push(word);
-          tspan.text(line.join(" "));
-          if (tspan.node().getComputedTextLength() > width) {
-            line.pop();
-            tspan.text(line.join(" "));
-            line = [word];
-            tspan = text.append("tspan").attr("x", 0).attr("y", y).attr("dy", ++lineNumber * lineHeight + dy + "em").text(word);
-          }
-        }
-      });
+    function getUrbRurWeight(datum){
+      let categs = ["Urban", "Rural"];
+      //console.log(datum);
+      //console.log(datum.data.name);
+      //console.log(datum.data.name)
+      //console.log(coloredCategs.includes(datum.data.name))
+      if (categs.includes(datum.data.name)){
+        return {
+          area: datum.data.name,
+          weight: datum.value
+        };
+      }
+      else {
+        return getUrbRurWeight(datum.parent);
+      }
     }
+
 
   </script>
