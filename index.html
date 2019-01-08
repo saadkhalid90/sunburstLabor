@@ -95,14 +95,29 @@
       font-size: 14px;
     }
 
+    .button {
+      padding: 15px;
+      background-color: #00897B;
+      color: white;
+      border-radius: 25px;
+      width: 90px;
+      text-align: center;
+      cursor: pointer;
+    }
+
+    #OlderButton {
+      margin-left: 5px;
+      margin-right: 5px;
+    }
+
 
   </style>
 
   <body>
     <div id=ButtonContain>
-      <button id="youngerButton">Age 15-24</button>
-      <button id="OlderButton">Age 25-64</button>
-      <button id="AllButton" disabled="true" >All</button>
+      <div class="button" id="youngerButton" ageGroup="15-24"><span>Age 15-24</span></div>
+      <div class="button" id="OlderButton" ageGroup="25-64"><span>Age 25-64</span></div>
+      <div class="button" id="AllButton" ageGroup="All"><span>All</span></div>
     </div>
     <div id="main">
       <div id="sequence"></div>
@@ -259,9 +274,10 @@
 
         // interaction with buttons
         d3.select("#ButtonContain")
-          .selectAll('button').on("click", function(d, i){
+          .selectAll('div').on("click", function(d, i){
             console.log(d3.select(this).attr('id'))
-            let ageGroup = d3.select(this).html().replace("Age ", "")
+            console.log(this);
+            let ageGroup = d3.select(this).attr('ageGroup');
 
             let dataFiltered;
             let jsonFiltered;
@@ -493,6 +509,7 @@
     }
 
     function initializeBreadcrumbTrail() {
+      d3.select("#trailAndPercent").remove();
       // Add the svg area.
       var trailAndPercent = d3.select("#sequence").append("div")
           .style("width", '100%')
