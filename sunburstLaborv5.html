@@ -1,7 +1,7 @@
 <!DOCTYPE html>
   <head>
       <title>Sunburst for Women Labor Force in Punjab</title>
-      <script src='https://d3js.org/d3.v4.min.js'></script>
+      <script src="//d3js.org/d3.v5.min.js"></script>
       <script src='https://cdnjs.cloudflare.com/ajax/libs/d3-legend/2.25.6/d3-legend.min.js'></script>
       <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
       <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.0.12/css/all.css" integrity="sha384-G0fIWCsCzJIMAVNQPfjH08cyYaUtMwjJwqiRKxxE/rx96Uroj1BtIQ6MLJuheaO9" crossorigin="anonymous">
@@ -13,6 +13,12 @@
     body {
       background: white;
       font-family: 'Lato', sans-serif;
+    }
+
+    #ButtonContain {
+      display: flex;
+      justify-content: center;
+      margin: 10px;
     }
 
     #trail {
@@ -93,11 +99,16 @@
   </style>
 
   <body>
+    <div id=ButtonContain>
+      <button id="youngerButton">Age 15-24</button>
+      <button id="OlderButton">Age 25-64</button>
+      <button id="AllButton" disabled="true" >All</button>
+    </div>
     <div id="main">
       <div id="sequence"></div>
       <div id="NodeTypeDiv">
-        <p id="NodeTypeText">
-
+        <p id="NodeTypeText" style="opacity: 0;">
+          Layer Type
         </p>
       </div>
       <div id="chart">
@@ -108,120 +119,178 @@
           Denominator: All <span id="UrbRurTitle"></span><br/><br/>
         </div>
       </div>
+      <div id="NodeTypeDiv">
+        <p id="NodeTypeText" style="opacity: 0;">
+          Layer Type
+        </p>
+      </div>
     </div>
-    <div id="sidebar">
-    </div>
+
   </body>
   <script>
-    const scalColCateg = d3.scaleOrdinal()
-    let layerTypeScale
-    d3.csv('laborHierarchy.csv', function(error, data){
-      console.log(data);
-
-      var seqValues = d3.nest()
-                        .key(function(d) { return d.sequence; })
-                        .rollup(function(v) { return d3.sum(v.map(d => d.weight)); })
-                        .entries(data);
-
-      console.log(seqValues);
-
-      function convArrOfArr(dataset){
-        let arrOfArr = dataset.map(d => {
-          return [d.key, +d.value];
-        })
-
-        return arrOfArr;
-      }
-
-      // list of variables that are part of the sequence
-      let seqVars = ["area", "laborForce", "employment", "industry", "barrier", "empType", "homeBased", "informal"]
-      let layerTypes = ["Area", "Labor Force Participation", "Employment", "Industry", "Major barrier to work", "Employment Type", "Home based work", "Informal/ formal employment in non-agriculture sectors"];
-      let idx = 0;
-
-      let categs = [];
-      let categLayerType = [];
-      let setCategs;
-      let arrCategs;
-      seqVars.forEach(varble => {
-        setCategs = new Set(data.map(d => d[varble]));
-        arrCategs = Array.from(setCategs).filter(d => d!= "NA");
-
-        categLayerType = categLayerType.concat(Array(arrCategs.length).fill(layerTypes[idx]));
-        categs = categs.concat(arrCategs)
-        idx += 1;
-      })
-
-      layerTypeScale = d3.scaleOrdinal()
-                          .domain(categs)
-                          .range(categLayerType);
-
-      // declaring labels and colors
-      let labels = ["Urban", "Rural", "Not in labor force", "Labor force"];
-      let colors = ['#29B6F6','#4DB6AC','#FF8F00','#8E24AA'];
-
-
-      // setting the domain and range of scale
-      scalColCateg.domain(labels)
-                  .range(colors);
-
-
-      let arrOfArr = convArrOfArr(seqValues);
-      console.log(convArrOfArr(seqValues));
-      console.log(d3.sum(seqValues.map(d => d.value)));
-      console.log(d3.sum(data.map(d => d.weight)));
-      console.log(buildHierarchy(arrOfArr));
-      let json = buildHierarchy(arrOfArr);
-      createVisualization(json, scalColCateg);
-
-
-
-
-    })
-
+    // defining color and layer type ordinal scale in global scope
+    const scalColCateg = d3.scaleOrdinal();
+    const layerTypeScale = d3.scaleOrdinal();
 
     // Dimensions of sunburst.
-    var width = 850;
-    var height = width/5 * 4;
-    var radius = Math.min(width, height) / 2;
+    let width = 850;
+    let height = width/5 * 4; // 5:4 aspect ratio
+    let radius = Math.min(width, height) / 2;
 
     // Breadcrumb dimensions: width, height, spacing, width of tip/tail.
-    var b = {
+    let b = {
       w: 100, h: 80, s: 5, t: 15
     };
 
-    // Mapping of step names to colors.
-    var colors = {
-      "home": "#5687d1",
-      "product": "#7b615c",
-      "search": "#de783b",
-      "account": "#6ab975",
-      "other": "#a173d1",
-      "end": "#bbbbbb"
-    };
-
     // Total size of all segments; we set this later, after loading the data.
-    var totalSize = 29020;
+    let totalSize;
 
-    var vis = d3.select("#chart").append("svg:svg")
+    let vis = d3.select("div#chart").append("svg:svg")
         .attr("width", width)
         .attr("height", height)
+        .attr('class', 'chartSVG')
         .append("svg:g")
         .attr("id", "container")
+        // mask the whole group in svg by a circle with radial gradient
         .attr('mask', 'url(#gradientMask)')
         .style('mask', 'url(#gradientMask)')
+        // center the group within the svg
         .attr("transform", "translate(" + width / 2 + "," + height / 2 + ")");
 
-    var partition = d3.partition()
+    // define partition function for 2*pi circumference
+    let partition = d3.partition()
         .size([2 * Math.PI, radius * radius]);
 
-    let offsetAngle = 0.5*Math.PI;
+    // offset angle to rotate the sunburst
+    let offsetAngle = 0.5 * Math.PI;
 
-    var arc = d3.arc()
-        .startAngle(function(d) { return d.x0 + offsetAngle; })
-        .endAngle(function(d) { return d.x1 + offsetAngle; })
+    // define an arc function that will return curved path given data
+    // partition return x0, x1 (start angle and end angle)
+    // and y0, y1 (inner and outer radius)
+    let arc = d3.arc()
+        .startAngle(d => d.x0 + offsetAngle)
+        .endAngle(d => d.x1 + offsetAngle)
+        // give the arcs a bit of padding
         .padAngle([0.0025])
-        .innerRadius(function(d) { return Math.sqrt(d.y0); })
-        .outerRadius(function(d) { return Math.sqrt(d.y1) - 2; });
+        .innerRadius(d => Math.sqrt(d.y0))
+        .outerRadius(function(d) {
+          let withinLayerPadding = 2;
+          return Math.sqrt(d.y1) - withinLayerPadding;
+        });
+
+    // async function that reads in data, conducts transforamtions and draws the visualization
+    async function readAndDrawSunburst(){
+        // read in the data asynchronously
+        let data = await d3.csv('laborHierarchy.csv');
+
+        // function takes in a sequence csv and converts it into array of arrays
+        function convArrOfArr(dataset){
+          let arrOfArr = dataset.map(d => {
+            // each row is returned as an array of key and value
+            return [d.key, +d.value];
+          })
+          return arrOfArr;
+        }
+
+        // list of variables that are part of the sequence
+        let seqVars = ["area", "laborForce", "employment", "industry", "barrier", "empType", "homeBased", "informal"]
+        // give each variable a layer Type to help users read the visual
+        let layerTypes = ["Area", "Labor Force Participation", "Employment", "Industry", "Major barrier to work", "Employment Type", "Home based work", "Informal/ formal employment in non-agriculture sectors"];
+
+
+
+        ////// Code to assign each category to a layer type
+        let categs = [];
+        let categLayerType = [];
+        let setCategs;
+        let arrCategs;
+        let idx = 0;
+
+        // loop through each var, get all unique categories and assign a layer type
+        seqVars.forEach(varble => {
+          setCategs = new Set(data.map(d => d[varble]));
+          arrCategs = Array.from(setCategs).filter(d => d!= "NA");
+          categLayerType = categLayerType.concat(Array(arrCategs.length).fill(layerTypes[idx]));
+          categs = categs.concat(arrCategs)
+          idx += 1;
+        })
+
+        // updating the domain and range of the layer type scale
+        layerTypeScale.domain(categs)
+                      .range(categLayerType);
+
+        // declaring labels and colors
+        let labels = ["Urban", "Rural", "Not in labor force", "Labor force"];
+        let colors = ['#29B6F6','#4DB6AC','#FF8F00','#8E24AA'];
+
+        // setting the domain and range of color scale
+        scalColCateg.domain(labels)
+                    .range(colors);
+
+        function transformData(dataset){
+          // group data based on sequences and add the weights
+          let seqValues = d3.nest()
+                            .key(d => d.sequence)
+                            .rollup(v => d3.sum(v.map(d => d.weight)))
+                            .entries(dataset);
+
+          // converting grouped data into and array of arrays
+          let arrOfArr = convArrOfArr(seqValues);
+          // convert the array of arrays into a nested hierarchical json
+          let json = buildHierarchy(arrOfArr);
+          return json
+        }
+
+        let json = transformData(data);
+        // call the createVisualization function to draw the sunburst
+        createVisualization(json, scalColCateg);
+
+        // remove all stuff from chart and trail
+        function removeStuffAndRedraw(data, scale){
+          //d3.select('#sequence').selectAll('*').remove();
+          vis.transition()
+            .duration(250)
+            .style('fill-opacity', 0.0)
+            .on('end', function(){
+              vis.selectAll('*').remove();
+              createVisualization(data, scale)
+            })
+        }
+
+        // interaction with buttons
+        d3.select("#ButtonContain")
+          .selectAll('button').on("click", function(d, i){
+            console.log(d3.select(this).attr('id'))
+            let ageGroup = d3.select(this).html().replace("Age ", "")
+
+            let dataFiltered;
+            let jsonFiltered;
+            if (ageGroup != "All"){
+              dataFiltered = data.filter(d => d.ageGroup == ageGroup);
+            }
+            else {
+              dataFiltered = data;
+            }
+
+            console.log(dataFiltered);
+
+            // transform data and draw again
+            jsonFiltered = transformData(dataFiltered);
+
+            // remove shit
+            removeStuffAndRedraw(jsonFiltered, scalColCateg);
+
+            //createVisualization(jsonFiltered, scalColCateg);
+
+
+            // enable all and then disable the clicked button
+            d3.selectAll('button').attr('disabled', null);
+            d3.select(this).attr('disabled', 'true');
+          })
+    }
+
+    // call th async function to read in data and draw the visualization
+    readAndDrawSunburst();
 
 
     // Main function to draw and set up the visualization, once we have the data.
@@ -229,18 +298,23 @@
 
       // Basic setup of page elements.
       initializeBreadcrumbTrail();
-      //drawLegend();
-      d3.select("#togglelegend").on("click", toggleLegend);
-
       // Bounding circle underneath the sunburst, to make it easier to detect
       // when the mouse leaves the parent g.
+      vis.transition()
+        .duration(250)
+        .style('fill-opacity', 1);
+
       vis.append("svg:circle")
           .attr("r", radius)
           .style("opacity", 0);
 
-      let radGradData = [{"offset": "40%", "stop-opacity": 1, "stop-color": "white"}, {"offset": "100%", "stop-opacity": .75, "stop-color": "white"}];
+      // data for defining the radial gradient
+      let radGradData = [{"offset": "40%", "stop-opacity": 1, "stop-color": "white"}, {"offset": "100%", "stop-opacity": .65, "stop-color": "white"}];
 
-      d3.select('svg').append('defs')
+      let SVG = d3.select('svg.chartSVG')
+
+      // add a radial gradient in defs
+      SVG.append('defs')
           .append('radialGradient')
           .attr('id', 'radOpacGrad')
           .selectAll('stop')
@@ -251,41 +325,46 @@
           .attr('stop-opacity', d=> d[["stop-opacity"]])
           .attr('stop-color', d=> d[["stop-color"]]);
 
-      d3.select('svg').select('defs')
+      // add a circle that is filled by the gradient. This will be used to mask the chart
+      SVG.select('defs')
           .append('mask')
           .attr('id', 'gradientMask')
           .append('g')
           .append('svg:circle')
           .attr('r', radius)
-          //.style('fill', 'none')
           .style('fill', 'url(#radOpacGrad)');
 
+      console.log(json);
+
       // Turn the data into a d3 hierarchy and calculate the sums.
-      var root = d3.hierarchy(json)
+      let root = d3.hierarchy(json)
           .sum(function(d) { return d.size; })
-          .sort(function(a, b) { return b.value - a.value; });
+          .sort(function(a, b) {
+            if (a.parent.data.name != "Rural"){
+              return b.value - a.value;
+            } else {
+              return a.value - b.value;
+            }
+
+          });
 
       // For efficiency, filter nodes to keep only those large enough to see.
-      var nodes = partition(root).descendants()
+      let nodes = partition(root).descendants()
+          // This is where very small nodes get filtered
           .filter(function(d) {
               return (d.x1 - d.x0 > 0.005); // 0.005 radians = 0.29 degrees
           });
 
-      console.log(nodes);
+      console.log(root);
 
-      var path = vis.data([json]).selectAll("path")
+
+      let path = vis.data([json]).selectAll("path")
           .data(nodes)
           .enter().append("svg:path")
           .attr("display", function(d) { return d.depth ? null : "none"; })
           .attr("d", arc)
           .attr("fill-rule", "evenodd")
-          .style("fill", function(d) {
-            //console.log(d.data)
-            //let datum = d
-            //console.log(getParentCol(d))
-            //console.log(scalColCateg(getParentCol(d)))
-            return  scalColCateg(getParentCol(d))/*'#EEFF41' colScale(d.data.name);*/
-          })
+          .style("fill", d => scalColCateg(getParentCol(d)))
           .style("opacity", 1)
           .on("mouseover", mouseover);
 
@@ -296,16 +375,16 @@
       totalSize = path.datum().value;
 
       // draw legend
-      d3.select('svg').append("g")
+      SVG.append("g")
         .attr("class", "legendOrdinal")
         .attr("transform", "translate(60 ,60)");
 
-      var legendOrdinal = d3.legendColor()
+      let legendOrdinal = d3.legendColor()
         .shapePadding(2)
         .scale(scalColCateg)
         .cellFilter(function(d){ return d.label !== "root" });
 
-      d3.select('svg').select(".legendOrdinal")
+      SVG.select(".legendOrdinal")
         .call(legendOrdinal);
 
       d3.select(".legendOrdinal").append('text')
@@ -317,27 +396,28 @@
 
     // Fade all but the current sequence, and show it in the breadcrumb trail.
     function mouseover(d) {
-
-      var areaSize = getUrbRurWeight(d);
+      // get urban/ rural and denominator for urban/ rural
+      let areaSize = getUrbRurWeight(d);
       let area = getUrbRurWeight(d).area;
-      console.log(areaSize)
-      var percentage = (100 * d.value / totalSize).toPrecision(3);
-      var percArea = (100 * d.value / areaSize.weight).toPrecision(3);
 
-      var parSize = d3.sum(d.parent.children.map(d => d.value));
-      var percRelPar = (100 * d.value / parSize).toPrecision(3);
+      // calculate all relevant percentages to be shown in visual
+      let percentage = (100 * d.value / totalSize).toPrecision(3);
+      let percArea = (100 * d.value / areaSize.weight).toPrecision(3);
+      let parSize = d3.sum(d.parent.children.map(d => d.value));
+      let percRelPar = (100 * d.value / parSize).toPrecision(3);
 
-      var percentageString = percentage + "%";
+      // percentage strings
+      let percentageString = percentage + "%";
       if (percentage < 0.1) {
         percentageString = "< 0.1%";
       }
 
-      var percRelParString = percRelPar + "%";
+      let percRelParString = percRelPar + "%";
       if (percRelPar < 1) {
         percRelPar = "< 0.1%";
       }
 
-
+      // Add percentages on to the visual
       d3.select("#percentage")
           .text(percRelParString);
 
@@ -352,6 +432,7 @@
 
       let hoveredName = d.data.name;
 
+      // showing and styling type of Layer
       d3.select("#NodeTypeText")
         .html(d => {
           return `<br>Layer Type: <span id ="NodeTypeTextSpan">${layerTypeScale(hoveredName)}</span>`
@@ -362,8 +443,10 @@
 
 
 
-      var sequenceArray = d.ancestors().reverse();
+      let sequenceArray = d.ancestors().reverse();
       sequenceArray.shift(); // remove root node from the array
+      console.log("seqArray", sequenceArray);
+      // update the breadcrumb trail
       updateBreadcrumbs(sequenceArray, percentageString);
 
       // Fade all the segments.
@@ -373,6 +456,7 @@
       // Then highlight only those that are an ancestor of the current segment.
       vis.selectAll("path")
           .filter(function(node) {
+                    // if node exists in sequence (greater or equal to zero)
                     return (sequenceArray.indexOf(node) >= 0);
                   })
           .style("opacity", 1);
@@ -394,12 +478,13 @@
           .duration(1000)
           .style("opacity", 1)
           .on("end", function() {
-                  d3.select(this).on("mouseover", mouseover);
+                  d3.select(this).on("mouseover", mouseover); // reactive mouseover after transition ends
                 });
 
       d3.select("#explanation")
           .style("visibility", "hidden");
 
+      // opacity of Node Text Type and endlabel
       d3.select("#NodeTypeText")
           .style("opacity", 0);
 
@@ -420,34 +505,16 @@
             .append('p')
             .attr('id', 'endlabel')
             .style('color', 'black')
-            // .html(function() {
-            //   return '<p id="endlabel" style="color: black"></p>'
-            // })
     }
 
-    // Generate a string that describes the points of a breadcrumb polygon.
-    function breadcrumbPoints(d, i) {
-      var points = [];
-      points.push("0,0");
-      points.push(b.w + ",0");
-      points.push(b.w + b.t + "," + (b.h / 2));
-      points.push(b.w + "," + b.h);
-      points.push("0," + b.h);
-      if (i > 0) { // Leftmost breadcrumb; don't include 6th vertex.
-        points.push(b.t + "," + (b.h / 2));
-      }
-      return points.join(" ");
-    }
 
     // Update the breadcrumb trail to show the current sequence and percentage.
     function updateBreadcrumbs(nodeArray, percentageString) {
 
       // Data join; key function combines name and depth (= position in sequence).
-      console.log("nodeArray", nodeArray)
       var trail = d3.select("#trail")
           .selectAll("div")
           .data(nodeArray, function(d) {
-            console.log(d)
             return d.data.name + d.depth;
           });
 
@@ -456,30 +523,11 @@
 
       // Add breadcrumb and label for entering nodes.
       var entering = trail.enter().append("div").attr('class', 'labelContainer');
-
+      // color for entering breadcrumbs
       entering.style('background', function(d) { return scalColCateg(getParentCol(d)); });
-
+      // adding html to the p tag
       entering.html(function(d) {
         return '<span style="color: white">' + d.data.name + ' </span><i class="fas fa-angle-right"></i>'
-      });
-        //  .attr("width", b.w)
-        //  .attr("height", b.h)
-        //  .style("fill", function(d) { return scalColCateg(getParentCol(d)); });
-
-      entering.append("svg:text")
-          .attr("x", b.w/2)
-          .attr("y", b.h / 4)
-          .attr("dy", "0.35em")
-          //.attr("dx", "0.35em")
-          //.attr("text-anchor", "middle")
-          .text(function(d) { return d.data.name; })
-          //.call(wrap, b.w)
-
-      //entering.selectAll('text').call(wrap, b.w);
-
-      // Merge enter and update selections; set position for all nodes.
-      entering.merge(trail).attr("transform", function(d, i) {
-        return "translate(" + i * (b.w + b.s) + ", 0)";
       });
 
       // Now move and update the percentage at the end.
@@ -497,47 +545,6 @@
 
     }
 
-    function drawLegend() {
-
-      // Dimensions of legend item: width, height, spacing, radius of rounded rect.
-      var li = {
-        w: 75, h: 30, s: 3, r: 3
-      };
-
-      var legend = d3.select("#legend").append("svg:svg")
-          .attr("width", li.w)
-          .attr("height", d3.keys(colors).length * (li.h + li.s));
-
-      var g = legend.selectAll("g")
-          .data(d3.entries(colors))
-          .enter().append("svg:g")
-          .attr("transform", function(d, i) {
-                  return "translate(0," + i * (li.h + li.s) + ")";
-               });
-
-      g.append("svg:rect")
-          .attr("rx", li.r)
-          .attr("ry", li.r)
-          .attr("width", li.w)
-          .attr("height", li.h)
-          .style("fill", function(d) { return d.value; });
-
-      g.append("svg:text")
-          .attr("x", li.w / 2)
-          .attr("y", li.h / 2)
-          .attr("dy", "0.35em")
-          .attr("text-anchor", "middle")
-          .text(function(d) { return d.key; });
-    }
-
-    function toggleLegend() {
-      var legend = d3.select("#legend");
-      if (legend.style("visibility") == "hidden") {
-        legend.style("visibility", "");
-      } else {
-        legend.style("visibility", "hidden");
-      }
-    }
 
     // Take a 2-column CSV and transform it into a hierarchical structure suitable
     // for a partition layout. The first column is a sequence of step names, from
@@ -548,10 +555,6 @@
       for (var i = 0; i < csv.length; i++) {
         var sequence = csv[i][0];
         var size = +csv[i][1];
-        // console.log(csv[0])
-        // console.log("i", i);
-        // console.log("sequence", sequence)
-        // console.log("size", size)
         if (isNaN(size)) { // e.g. if this is a header row
           continue;
         }
@@ -560,16 +563,12 @@
         var currentNode = root;
         for (var j = 0; j < parts.length; j++) {
           var children = currentNode["children"];
-          // console.log("j", j)
-          //console.log("children", children)
-          // console.log("nodeName", nodeName)
           var nodeName = parts[j];
           var childNode;
           if (j + 1 < parts.length) {
             // Not yet at the end of the sequence; move down the tree.
      	      var foundChild = false;
      	      for (var k = 0; k < children.length; k++) {
-              // console.log("k", k);
      	        if (children[k]["name"] == nodeName) {
      	          childNode = children[k];
      	          foundChild = true;
@@ -581,32 +580,21 @@
           	  childNode = {"name": nodeName, "children": []};
           	  children.push(childNode);
           	}
-            // console.log("foundChild", foundChild);
-            // console.log("childNode", childNode);
-            // console.log("children", children);
        	    currentNode = childNode;
           } else {
            	// Reached the end of the sequence; create a leaf node.
            	childNode = {"name": nodeName, "size": size};
            	children.push(childNode);
-            // console.log("childNode", childNode);
-            // console.log("children", children);
           }
         }
-        // console.log(root)
       }
 
       return root;
     };
 
-
-
+    // recursively get a parent given a defined list of parents
     function getParentCol(datum){
       let coloredCategs = ["Urban", "Rural", "Not in labor force", "Labor force", "root"];
-      //console.log(datum);
-      //console.log(datum.data.name);
-      //console.log(datum.data.name)
-      //console.log(coloredCategs.includes(datum.data.name))
       if (coloredCategs.includes(datum.data.name)){
         return datum.data.name;
       }
@@ -615,12 +603,9 @@
       }
     }
 
+    // get whether Urban or Rural in ancestors and its value
     function getUrbRurWeight(datum){
       let categs = ["Urban", "Rural"];
-      //console.log(datum);
-      //console.log(datum.data.name);
-      //console.log(datum.data.name)
-      //console.log(coloredCategs.includes(datum.data.name))
       if (categs.includes(datum.data.name)){
         return {
           area: datum.data.name,
