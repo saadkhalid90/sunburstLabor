@@ -181,7 +181,7 @@
     // async function that reads in data, conducts transforamtions and draws the visualization
     async function readAndDrawSunburst(){
         // read in the data asynchronously
-        let data = await d3.csv('laborHierarchy.csv');
+        let data = await d3.csv('laborHierarchyMS.csv');
 
         // function takes in a sequence csv and converts it into array of arrays
         function convArrOfArr(dataset){
@@ -193,9 +193,9 @@
         }
 
         // list of variables that are part of the sequence
-        let seqVars = ["area", "laborForce", "employment", "industry", "barrier", "empType", "homeBased", "informal"]
+        let seqVars = ["area", "laborForce", "employment", "industry", "barrier", "maritalStatus", "empType", "homeBased", "informal"]
         // give each variable a layer Type to help users read the visual
-        let layerTypes = ["Area", "Labor Force Participation", "Employment", "Industry", "Major barrier to work", "Employment Type", "Home based work", "Informal/ formal employment in non-agriculture sectors"];
+        let layerTypes = ["Area", "Labor Force Participation", "Employment", "Industry", "Major barrier to work", "Marital Status", "Employment Type", "Home based work", "Informal/ formal employment in non-agriculture sectors"];
 
 
 
